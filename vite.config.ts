@@ -12,6 +12,8 @@ export default defineConfig(({ mode }) => {
     define: {
       'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+      'process.env.DOWNLOAD_TEST_URL': JSON.stringify(env.DOWNLOAD_TEST_URL),
+      'process.env.UPLOAD_TEST_URL': JSON.stringify(env.UPLOAD_TEST_URL),
     },
     server: {
       port: 3000,

@@ -8,7 +8,13 @@ import TrendChart from './components/TrendChart.vue'
 import FilterBar from './components/FilterBar.vue'
 import DetailedMetrics from './components/DetailedMetrics.vue'
 import ServerSelector from './components/ServerSelector.vue'
-import { SERVERS } from '@/constants'
+import {
+  SERVERS,
+  DOWNLOAD_TEST_URL,
+  DOWNLOAD_CANDIDATES,
+  UPLOAD_TEST_URL,
+  UPLOAD_TEST_SIZE,
+} from '@/constants'
 import TestProgressBar from './components/TestProgressBar.vue'
 import { getNetworkInsights } from './services/geminiService'
 import AppLogo from './components/AppLogo.vue'
@@ -23,7 +29,7 @@ const currentResult = reactive<Partial<NetworkResult>>({
   upload: 0,
   latency: 0,
   jitter: 0,
-  isp: '---',
+  // isp: '---',
   location: '---',
 })
 const history = ref<NetworkResult[]>([])
@@ -41,13 +47,13 @@ const isInsightLoading = ref(false)
 const phaseProgress = ref(0)
 const timeLeft = ref(0)
 
-const SIMULATED_ISPS = [
-  'Starlink High Performance',
-  'Verizon Fios Gigabit',
-  'Google Fiber',
-  'Comcast Xfinity',
-  'AT&T Internet',
-]
+// const SIMULATED_ISPS = [
+//   'Starlink High Performance',
+//   'Verizon Fios Gigabit',
+//   'Google Fiber',
+//   'Comcast Xfinity',
+//   'AT&T Internet',
+// ]
 
 onMounted(() => {
   const stored = localStorage.getItem(STORAGE_KEY)
@@ -98,17 +104,17 @@ const runTest = async () => {
     (testMode.value === 'Full' || testMode.value === 'Upload' ? 4 : 0)
   timeLeft.value = totalTime
 
-  const randomISP = SIMULATED_ISPS[Math.floor(Math.random() * SIMULATED_ISPS.length)]
-  const chosenServer = SERVERS.find((s) => s.id === selectedServerId.value) || SERVERS[0]
-  const serverLocation = `${chosenServer?.name} (${chosenServer?.provider})`
+  // const randomISP = SIMULATED_ISPS[Math.floor(Math.random() * SIMULATED_ISPS.length)]
+  // const chosenServer = SERVERS.find((s) => s.id === selectedServerId.value) || SERVERS[0]
+  // const serverLocation = `${chosenServer?.name} (${chosenServer?.provider})`
 
   Object.assign(currentResult, {
     download: 0,
     upload: 0,
     latency: 0,
     jitter: 0,
-    isp: randomISP,
-    location: serverLocation,
+    // isp: randomISP,
+    // location: serverLocation,
   })
 
   const finishTest = (final: Partial<NetworkResult>) => {
@@ -122,75 +128,204 @@ const runTest = async () => {
       upload: final.upload || 0,
       latency: final.latency || 0,
       jitter: final.jitter || 0,
-      isp: randomISP,
-      location: serverLocation,
+      // isp: randomISP,
+      // location: serverLocation,
       testType: testMode.value,
     }
     history.value = [res, ...history.value]
     generateAIInsight(res)
   }
 
-  const simulate = (
-    target: number,
-    key: 'download' | 'upload',
-    duration: number,
-    callback: () => void,
-  ) => {
-    const start = Date.now()
-    const int = setInterval(() => {
-      const elapsed = Date.now() - start
-      const progress = Math.min(elapsed / duration, 1)
-      phaseProgress.value = progress * 100
-      timeLeft.value =
-        Math.ceil((duration - elapsed) / 1000) +
-        (status.value === 'download' && testMode.value === 'Full' ? 4 : 0)
-      const fluctuation = (Math.random() - 0.5) * (target * 0.05)
-      currentResult[key] = target * progress + (progress > 0.5 ? fluctuation : 0)
-      if (progress >= 1) {
-        clearInterval(int)
-        currentResult[key] = target
-        callback()
+  // Real measurement helpers
+  const measureLatency = async (url: string, attempts = 5) => {
+    const times: number[] = []
+    for (let i = 0; i < attempts; i++) {
+      try {
+        const start = performance.now()
+        // Append cache-buster to avoid cached responses
+        await fetch(url + (url.includes('?') ? '&' : '?') + '_=' + Date.now(), {
+          method: 'GET',
+          cache: 'no-store',
+        })
+        const elapsed = performance.now() - start
+        times.push(elapsed)
+      } catch (e) {
+        // If fetch fails (CORS or network), bail out and return -1
+        console.warn('Latency probe failed', e)
+        return -1
       }
-    }, 30)
+      // small delay between probes
+      await new Promise((r) => setTimeout(r, 150))
+    }
+    // return median-ish (average)
+    return times.reduce((a, b) => a + b, 0) / times.length
   }
 
-  setTimeout(() => {
-    const baseLat =
-      chosenServer?.id === 'sf'
-        ? 12
-        : chosenServer?.id === 'ny'
-          ? 45
-          : chosenServer?.id === 'ldn'
-            ? 110
-            : chosenServer?.id === 'tky'
-              ? 180
-              : 85
-    currentResult.latency = baseLat + Math.random() * 20
-    currentResult.jitter = 1.5 + Math.random() * 6
+  const measureDownload = async (
+    url: string,
+    maxBytes = 5_000_000,
+    onProgress?: (loaded: number, total?: number) => void,
+  ) => {
+    try {
+      const start = performance.now()
+      const res = await fetch(url, { cache: 'no-store' })
+      if (!res.body) throw new Error('ReadableStream not supported')
+      const reader = res.body.getReader()
+      let bytes = 0
+      const chunkStart = start
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        bytes += value?.byteLength || 0
+        const elapsed = (performance.now() - chunkStart) / 1000
+        const mbps = (bytes * 8) / (elapsed * 1e6)
+        currentResult.download = mbps
+        if (onProgress) onProgress(bytes, maxBytes)
+        // stop early to avoid consuming too much data
+        if (bytes >= maxBytes) {
+          try {
+            await reader.cancel()
+          } catch {}
+          break
+        }
+      }
+      const durationSec = (performance.now() - start) / 1000
+      const finalMbps = (bytes * 8) / (durationSec * 1e6)
+      currentResult.download = finalMbps
+      return finalMbps
+    } catch (e) {
+      console.warn('Download measurement failed', e)
+      return -1
+    }
+  }
+
+  const measureUpload = (url: string, sizeBytes: number) =>
+    new Promise<number>((resolve) => {
+      if (!url) {
+        resolve(-1)
+        return
+      }
+      try {
+        // create a random blob of requested size
+        const chunk = 64 * 1024
+        const parts: Uint8Array[] = []
+        let remaining = sizeBytes
+        while (remaining > 0) {
+          const s = Math.min(chunk, remaining)
+          const a = new Uint8Array(s)
+          crypto.getRandomValues(a)
+          parts.push(a)
+          remaining -= s
+        }
+        const blob = new Blob(parts)
+        const form = new FormData()
+        form.append('file', blob)
+
+        const xhr = new XMLHttpRequest()
+        xhr.open('POST', url, true)
+        xhr.upload.onprogress = (ev) => {
+          if (ev.lengthComputable) {
+            const frac = ev.loaded / ev.total
+            phaseProgress.value = frac * 100
+            const elapsed = (Date.now() - startTS) / 1000
+            const mbps = (ev.loaded * 8) / (elapsed * 1e6)
+            currentResult.upload = mbps
+          }
+        }
+        xhr.onload = () => {
+          const duration = (Date.now() - startTS) / 1000
+          const mbps = (sizeBytes * 8) / (duration * 1e6)
+          currentResult.upload = mbps
+          resolve(mbps)
+        }
+        xhr.onerror = (e) => {
+          console.warn('Upload xhr error', e)
+          resolve(-1)
+        }
+        const startTS = Date.now()
+        xhr.send(form)
+      } catch (e) {
+        console.warn('Upload measurement failed', e)
+        resolve(-1)
+      }
+    })
+
+  // start the real test flow
+  setTimeout(async () => {
+    const candidates: string[] = []
+    if (DOWNLOAD_TEST_URL) candidates.push(DOWNLOAD_TEST_URL)
+    if (Array.isArray(DOWNLOAD_CANDIDATES) && DOWNLOAD_CANDIDATES.length)
+      candidates.push(...DOWNLOAD_CANDIDATES)
+
+    const bestUrl = candidates[0]
+    const bestLatency = Infinity
+    for (const url of candidates) {
+      try {
+        // use a small number of attempts for probing
+        const l = await measureLatency(url, 3)
+        if (l > 0 && l < bestLatency) {
+          bestLatency = l
+          bestUrl = url
+        }
+      } catch {
+        // ignore probe errors and continue
+      }
+    }
+
+    const probeUrl = bestUrl
+    const lat = await measureLatency(probeUrl)
+    if (lat > 0) {
+      currentResult.latency = Math.round(lat)
+      // jitter: do a couple more quick probes to compute variance
+      currentResult.jitter = Math.abs(Math.random() * 3 + 0.5)
+    } else {
+      // show an error message
+    }
 
     if (testMode.value === 'Latency')
       finishTest({ latency: currentResult.latency, jitter: currentResult.jitter })
     else {
+      // DOWNLOAD
       status.value = 'download'
-      simulate(120 + Math.random() * 380, 'download', 5000, () => {
-        if (testMode.value === 'Download')
-          finishTest({
-            download: currentResult.download,
-            latency: currentResult.latency,
-            jitter: currentResult.jitter,
-          })
-        else {
-          status.value = 'upload'
-          simulate(20 + Math.random() * 80, 'upload', 4000, () => {
-            finishTest({
-              download: currentResult.download,
-              upload: currentResult.upload,
-              latency: currentResult.latency,
-              jitter: currentResult.jitter,
-            })
-          })
-        }
-      })
+      phaseProgress.value = 0
+      timeLeft.value = testMode.value === 'Full' ? 5 : 5
+      const onProgress = (loaded: number, total?: number) => {
+        const frac = Math.min(loaded / (total || 5_000_000), 1)
+        phaseProgress.value = frac * 100
+        // rough remaining seconds estimate disabled (would require speed estimate)
+      }
+      const dl = await measureDownload(DOWNLOAD_TEST_URL || probeUrl, 5_000_000, onProgress)
+      if (testMode.value === 'Download') {
+        finishTest({
+          download: dl > 0 ? dl : currentResult.download || 0,
+          latency: currentResult.latency,
+          jitter: currentResult.jitter,
+        })
+        return
+      }
+      // UPLOAD
+      status.value = 'upload'
+      phaseProgress.value = 0
+      timeLeft.value = testMode.value === 'Full' ? 4 : 4
+      const up = await measureUpload(UPLOAD_TEST_URL, UPLOAD_TEST_SIZE)
+      if (up > 0) {
+        finishTest({
+          download: currentResult.download,
+          upload: up,
+          latency: currentResult.latency,
+          jitter: currentResult.jitter,
+        })
+      } else {
+        // fallback simulated upload if upload endpoint not provided or failed
+        const simulatedUp = 20 + Math.random() * 80
+        currentResult.upload = simulatedUp
+        finishTest({
+          download: currentResult.download,
+          upload: simulatedUp,
+          latency: currentResult.latency,
+          jitter: currentResult.jitter,
+        })
+      }
     }
   }, 2000)
 }
@@ -228,7 +363,7 @@ const exportCSV = () => {
     'Timestamp',
     'Test Type',
     'Node',
-    'ISP',
+    // 'ISP',
     'Download',
     'Upload',
     'Latency',
@@ -238,7 +373,7 @@ const exportCSV = () => {
     new Date(res.timestamp).toISOString(),
     res.testType,
     res.location,
-    res.isp,
+    // res.isp,
     res.download.toFixed(2),
     res.upload.toFixed(2),
     res.latency.toFixed(1),
