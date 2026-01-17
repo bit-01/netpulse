@@ -1,14 +1,66 @@
 <!doctype html>
-<html lang="">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="NetPulse — lightweight browser-based network diagnostics and speed testing (latency, download, upload) with history, charts and export."
+    />
+    <meta
+      name="keywords"
+      content="network speed test, latency, download, upload, network diagnostics, NetPulse"
+    />
+    <meta name="theme-color" content="#0f172a" />
+    <link rel="canonical" href="/" />
+    <meta name="robots" content="index, follow" />
+    <meta property="image" content="/og-image.png" />
+
+    <!-- Open Graph -->
+    <meta property="og:site_name" content="NetPulse" />
+    <meta property="og:title" content="NetPulse — Browser Network Diagnostics" />
+    <meta
+      property="og:description"
+      content="Lightweight browser-based network diagnostics and speed testing (latency, download, upload) with history, charts and export."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="NetPulse — browser network diagnostics preview" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="NetPulse — Browser Network Diagnostics" />
+    <meta
+      name="twitter:description"
+      content="Run network latency, download and upload tests from your browser and track history."
+    />
+    <meta name="twitter:image" content="/og-image.png" />
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
     <title>NetPulse</title>
+
+    <!-- JSON-LD structured data -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "NetPulse",
+        "url": "https://netpulse.basselaflak.me",
+        "image": "/og-image.png",
+        "description": "NetPulse is a lightweight browser-based network diagnostics and speed-testing UI (latency, download, upload) with history, charts and export.",
+        "publisher": {
+          "@type": "Person",
+          "givenName": "Bassel",
+          "FamilyName": "Aflak",
+          "url": "https://basselaflak.me"
+        }
+      }
+    </script>
   </head>
   <body>
     <div id="app"></div>
