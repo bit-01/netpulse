@@ -20,6 +20,23 @@ const maxVal = computed(() =>
   Math.max(...sorted.value.map((d) => Math.max(d.download, d.upload)), 100),
 )
 
+const isSameDay = computed(() => {
+  if (sorted.value.length <= 1) return true
+  const first = new Date(sorted.value[0]!.timestamp).toDateString()
+  return sorted.value.every((d) => new Date(d.timestamp).toDateString() === first)
+})
+
+const formatTick = (ts: number) => {
+  const d = new Date(ts)
+  if (isSameDay.value) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  return d.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 const getXY = (i: number, key: 'download' | 'upload') => {
   const item = sorted.value[i]
   const x = M_LEFT + (i / (count.value - 1)) * INNER_W.value
@@ -153,9 +170,17 @@ const hoverUpPoint = computed(() =>
   hoverIndex.value !== null ? getXY(hoverIndex.value, 'upload') : null,
 )
 const tooltipX = computed(() => {
-  if (hoverDownPoint.value) return hoverDownPoint.value.x
-  if (hoverUpPoint.value) return hoverUpPoint.value.x
-  return 0
+  const raw = hoverDownPoint.value
+    ? hoverDownPoint.value.x
+    : hoverUpPoint.value
+      ? hoverUpPoint.value.x
+      : 0
+  // clamp tooltip so the tooltip rect (160px + padding) doesn't overflow
+  const pad = 16
+  const rectW = 160
+  const minX = M_LEFT + pad
+  const maxX = WIDTH.value - M_RIGHT - rectW - pad
+  return Math.max(minX, Math.min(raw, maxX))
 })
 
 // Axis ticks
@@ -170,15 +195,20 @@ const yTicks = computed(() => {
   }).reverse()
 })
 
-const xTicks = computed(() => {
+const xTicks = computed((): { label: string; x: number; labelX: number }[] => {
   const ticks = Math.min(6, count.value)
-  if (count.value === 0) return [] as { label: string; x: number }[]
+  if (count.value === 0) return [] as { label: string; x: number; labelX: number }[]
   return Array.from({ length: ticks }, (_, i) => {
     const idx = Math.round((i / (ticks - 1 || 1)) * (count.value - 1))
     const item = sorted.value[idx]
-    const label = item ? new Date(item.timestamp).toLocaleTimeString() : ''
+    const label = item ? formatTick(item.timestamp) : ''
     const { x } = getXY(idx, 'download')
-    return { label, x }
+    // compute a clamped label X so text doesn't overflow the SVG bounds
+    const textWidthEstimate = 80 // approximate label width in px
+    const minX = M_LEFT + 4
+    const maxX = WIDTH.value - M_RIGHT - textWidthEstimate
+    const labelX = Math.max(minX, Math.min(x - 28, maxX))
+    return { label, x, labelX }
   })
 })
 </script>
@@ -250,10 +280,11 @@ const xTicks = computed(() => {
         <text
           v-for="(t, i) in xTicks"
           :key="'xlbl' + i"
-          :x="t.x - 28"
+          :x="t.labelX"
           :y="M_TOP + INNER_H + 18"
           fill="#94a3b8"
           font-size="11"
+          style="pointer-events: none"
         >
           {{ t.label }}
         </text>
