@@ -1,26 +1,78 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { type NetworkResult } from '@/types'
 
 const props = defineProps<{ results: NetworkResult[]; selectedIds: string[] }>()
 const emit = defineEmits(['delete', 'select', 'select-all'])
 
+// sorting
+const sortKey = ref<'timestamp' | 'size' | 'download' | 'upload' | 'latency'>('timestamp')
+const sortDir = ref<-1 | 1>(-1)
+const setSort = (key: typeof sortKey.value) => {
+  if (sortKey.value === key) sortDir.value = sortDir.value === 1 ? -1 : 1
+  else {
+    sortKey.value = key
+    sortDir.value = -1
+  }
+}
+
+// pagination
+const page = ref(1)
+const pageSize = ref(10)
+
+const sortedResults = computed(() => {
+  const arr = [...props.results]
+  arr.sort((a, b) => {
+    const va = (a as unknown as Record<string, unknown>)[sortKey.value]
+    const vb = (b as unknown as Record<string, unknown>)[sortKey.value]
+    // sizes might be strings (like "100MB")
+    if (sortKey.value === 'size') {
+      const pa = parseFloat(String(va ?? '')) || 0
+      const pb = parseFloat(String(vb ?? '')) || 0
+      return (pa - pb) * sortDir.value
+    }
+    if (typeof va === 'string' || typeof vb === 'string') {
+      return String(va ?? '').localeCompare(String(vb ?? '')) * sortDir.value
+    }
+    return ((Number(va) || 0) - (Number(vb) || 0)) * sortDir.value
+  })
+  return arr
+})
+
+const pageCount = computed(() =>
+  Math.max(1, Math.ceil(sortedResults.value.length / pageSize.value)),
+)
+const currentPageResults = computed(() => {
+  const start = (page.value - 1) * pageSize.value
+  return sortedResults.value.slice(start, start + pageSize.value)
+})
+
 const isAllSelected = computed(
-  () => props.results.length > 0 && props.results.every((r) => props.selectedIds.includes(r.id)),
+  () =>
+    currentPageResults.value.length > 0 &&
+    currentPageResults.value.every((r) => props.selectedIds.includes(r.id)),
 )
 
 const toggleAll = () => {
-  if (isAllSelected.value)
+  const idsOnPage = currentPageResults.value.map((r) => r.id)
+  if (isAllSelected.value) {
+    // deselect page items
     emit(
       'select-all',
-      props.selectedIds.filter((id) => !props.results.find((r) => r.id === id)),
+      props.selectedIds.filter((id) => !idsOnPage.includes(id)),
     )
-  else
-    emit(
-      'select-all',
-      Array.from(new Set([...props.selectedIds, ...props.results.map((r) => r.id)])),
-    )
+  } else {
+    // select page items (merge)
+    emit('select-all', Array.from(new Set([...props.selectedIds, ...idsOnPage])))
+  }
 }
+
+const goToPage = (p: number) => {
+  page.value = Math.max(1, Math.min(pageCount.value, p))
+}
+
+// reset page if results change (optional) - clamp page when pageCount changes
+// keep a simple watcher-less clamp on navigation actions; Vue template will re-compute pageCount
 </script>
 
 <template>
@@ -28,7 +80,7 @@ const toggleAll = () => {
     v-if="results.length > 0"
     class="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40 backdrop-blur-sm"
   >
-    <table class="w-full text-left min-w-[900px]">
+    <table class="w-full text-left min-w-225">
       <thead class="bg-slate-800/50 text-slate-400 text-[10px] capitalize tracking-wider">
         <tr>
           <th class="px-6 py-4 w-16">
@@ -39,17 +91,42 @@ const toggleAll = () => {
               class="w-4 h-4 rounded border-slate-700 bg-slate-950 text-cyan-400"
             />
           </th>
-          <th class="px-6 py-4">Timestamp</th>
-          <th class="px-6 py-4">Size</th>
-          <th class="px-6 py-4">Down (Mbps)</th>
-          <th class="px-6 py-4">Up (Mbps)</th>
-          <th class="px-6 py-4">Latency (ms)</th>
+          <th class="px-6 py-4 cursor-pointer" @click="setSort('timestamp')">
+            Timestamp
+            <span class="ml-2 text-xs">{{
+              sortKey === 'timestamp' ? (sortDir === 1 ? '▲' : '▼') : ''
+            }}</span>
+          </th>
+          <th class="px-6 py-4 cursor-pointer" @click="setSort('size')">
+            Size
+            <span class="ml-2 text-xs">{{
+              sortKey === 'size' ? (sortDir === 1 ? '▲' : '▼') : ''
+            }}</span>
+          </th>
+          <th class="px-6 py-4 cursor-pointer" @click="setSort('download')">
+            Down (Mbps)
+            <span class="ml-2 text-xs">{{
+              sortKey === 'download' ? (sortDir === 1 ? '▲' : '▼') : ''
+            }}</span>
+          </th>
+          <th class="px-6 py-4 cursor-pointer" @click="setSort('upload')">
+            Up (Mbps)
+            <span class="ml-2 text-xs">{{
+              sortKey === 'upload' ? (sortDir === 1 ? '▲' : '▼') : ''
+            }}</span>
+          </th>
+          <th class="px-6 py-4 cursor-pointer" @click="setSort('latency')">
+            Latency (ms)
+            <span class="ml-2 text-xs">{{
+              sortKey === 'latency' ? (sortDir === 1 ? '▲' : '▼') : ''
+            }}</span>
+          </th>
           <th class="px-6 py-4 text-right">Actions</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-slate-800/50">
         <tr
-          v-for="res in results"
+          v-for="res in currentPageResults"
           :key="res.id"
           :class="[
             'transition-colors',
@@ -92,6 +169,33 @@ const toggleAll = () => {
         </tr>
       </tbody>
     </table>
+
+    <!-- pagination controls -->
+    <div class="flex items-center justify-between gap-4 p-3">
+      <div class="flex items-center gap-2">
+        <button
+          class="px-3 py-1 bg-slate-800 rounded-xl"
+          :disabled="page === 1"
+          @click="goToPage(page - 1)"
+        >
+          Prev
+        </button>
+        <span class="text-sm text-slate-400">Page {{ page }} of {{ pageCount }}</span>
+        <button
+          class="px-3 py-1 bg-slate-800 rounded-xl"
+          :disabled="page >= pageCount"
+          @click="goToPage(page + 1)"
+        >
+          Next
+        </button>
+      </div>
+      <div class="flex items-center gap-2 text-sm text-slate-400">
+        <label class="text-xs">Per page</label>
+        <select v-model.number="pageSize" class="bg-slate-800 text-slate-200 rounded-xl px-2 py-1">
+          <option v-for="opt in [5, 10, 20]" :key="opt" :value="opt">{{ opt }}</option>
+        </select>
+      </div>
+    </div>
   </div>
   <div
     v-else
