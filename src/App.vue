@@ -126,7 +126,7 @@ const runTest = async () => {
       testType: testMode.value,
     }
     history.value = [res, ...history.value]
-    // generateAIInsight(res)
+    generateAIInsight(res)
   }
 
   // Real measurement helpers

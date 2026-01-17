@@ -1,48 +1,58 @@
 # NetPulse
 
-This template should help get you started developing with Vue 3 in Vite.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
-## Recommended IDE Setup
+NetPulse is a lightweight browser-based network diagnostics and speed-testing UI built with Vue 3 and Vite. It runs client-side measurements (latency, download, upload) and stores recent results locally. The app includes charts and a simple history viewer with export/filters.
 
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+Try it at: [netpulse.basselaflak.me](https://netpulse.basselaflak.me)
 
-## Recommended Browser Setup
+## Features
 
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
+- Measure latency, download and upload speeds from the browser (adaptable to use public test files).
+- Adaptive candidate probing to pick the best test server.
+- Real-time progress bar and time-left estimation.
+- History table with sorting, pagination and selection.
+- Trend and comparison charts with responsive, interactive SVG visuals.
+- Export history to CSV and basic AI-generated insights (optional service integration).
 
-## Type Support for `.vue` Imports in TS
+## Quick start
 
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript language service aware of `.vue` types.
+Requirements
 
-## Customize configuration
+- Node.js (recommended 20.x or later)
 
-See [Vite Configuration Reference](https://vite.dev/config/).
+Install and run locally:
 
-## Project Setup
-
-```sh
+```bash
 npm install
-```
-
-### Compile and Hot-Reload for Development
-
-```sh
 npm run dev
 ```
 
-### Type-Check, Compile and Minify for Production
+Open the dev server URL printed by Vite (usually http://localhost:5173).
 
-```sh
+## Build
+
+```bash
 npm run build
 ```
 
-### Lint with [ESLint](https://eslint.org/)
+## Run type-check and lint
 
-```sh
+```bash
+npm run type-check
 npm run lint
 ```
+
+## Notes and caveats
+
+- Browser-based measurement depends on server support (CORS, Range requests) and the browser's streaming capabilities. Upload tests require a CORS-enabled upload endpoint to measure real upload throughput.
+- The app stores history in localStorage under the key `netpulse_results_vue`.
+- The default download candidates are configured in `src/constants.ts`. You can replace or add endpoints that support CORS and Range requests for better accuracy.
+
+## Contributing
+
+Contributions are welcome. Please open issues or pull requests. Keep changes small and well-documented.
+
+## License
+
+This project is open source and released under the MIT License — see the `LICENSE` file.
