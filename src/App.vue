@@ -12,6 +12,8 @@ import TestProgressBar from './components/TestProgressBar.vue'
 import { getNetworkInsights } from './services/geminiService'
 import AppLogo from './components/AppLogo.vue'
 import SizeSelector from './components/SizeSelector.vue'
+import IconGlobe from './components/IconGlobe.vue'
+import IconGithub from './components/IconGithub.vue'
 
 const STORAGE_KEY = 'netpulse_results_vue'
 
@@ -676,5 +678,61 @@ const resetFilters = () => {
         @select-all="(ids) => (selectedIds = ids)"
       />
     </section>
+
+    <!-- footer -->
+    <footer
+      class="mt-32 pt-12 border-t border-slate-800 flex flex-col md:flex-row items-center justify-between text-slate-500 text-[10px] font-bold uppercase tracking-[0.3em] gap-6 text-center md:text-left"
+    >
+      <div class="flex flex-col gap-2">
+        <div class="flex items-center gap-2">
+          <div class="relative">
+            <div
+              class="relative w-8 h-8 bg-cyan-500 border border-cyan-400 rounded flex items-center justify-center"
+            >
+              <AppLogo class="w-5 h-5 text-white" />
+            </div>
+          </div>
+          <div>
+            <h1
+              class="text-lg font-black tracking-tighter text-slate-100 uppercase italic leading-none"
+            >
+              NetPulse
+            </h1>
+            <p class="text-[8px] text-slate-400 uppercase tracking-[0.4em] font-bold">
+              Terminal v1.0
+            </p>
+          </div>
+        </div>
+        <p>&copy; {{ new Date().getFullYear() }} Released Under the MIT License.</p>
+      </div>
+      <div class="flex flex-col gap-2">
+        <div class="flex gap-3 text-xl justify-end">
+          <a
+            target="_blank"
+            href="https://github.com/bit-01"
+            class="hover:text-cyan-400 transition-colors"
+            aria-label="GitHub"
+            title="Github"
+          >
+            <IconGithub />
+            <span class="sr-only">github</span>
+          </a>
+          <a
+            target="_blank"
+            href="https://basselaflak.me"
+            class="hover:text-cyan-400 transition-colors"
+            aria-label="Website"
+            title="Website"
+          >
+            <IconGlobe />
+            <span class="sr-only">website</span>
+          </a>
+        </div>
+        <div class="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest">
+          <span> Developed by bassel aflak </span>
+          <img src="/logo.png" alt="Bassel Aflak" class="h-4" />
+        </div>
+      </div>
+    </footer>
   </div>
 </template>
