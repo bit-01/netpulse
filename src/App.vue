@@ -7,39 +7,33 @@ import ComparisonChart from './components/ComparisonChart.vue'
 import TrendChart from './components/TrendChart.vue'
 import FilterBar from './components/FilterBar.vue'
 import DetailedMetrics from './components/DetailedMetrics.vue'
-import ServerSelector from './components/ServerSelector.vue'
-import {
-  SERVERS,
-  DOWNLOAD_TEST_URL,
-  DOWNLOAD_CANDIDATES,
-  UPLOAD_TEST_URL,
-  UPLOAD_TEST_SIZE,
-} from '@/constants'
+import { DOWNLOAD_TEST_URL, DOWNLOAD_CANDIDATES, UPLOAD_TEST_URL, SIZES } from '@/constants'
 import TestProgressBar from './components/TestProgressBar.vue'
 import { getNetworkInsights } from './services/geminiService'
 import AppLogo from './components/AppLogo.vue'
+import SizeSelector from './components/SizeSelector.vue'
 
 const STORAGE_KEY = 'netpulse_results_vue'
 
 const status = ref<TestStatus>('idle')
 const testMode = ref<TestMode>('Full')
-const selectedServerId = ref(SERVERS[0]?.id || '')
+const selectedSize = ref('50MB')
 const currentResult = reactive<Partial<NetworkResult>>({
   download: 0,
   upload: 0,
   latency: 0,
   jitter: 0,
-  // isp: '---',
-  location: '---',
+  size: '---',
+  testType: 'Full',
 })
 const history = ref<NetworkResult[]>([])
-const filters = reactive({
+const filters = ref({
   startDate: '',
   endDate: '',
   minDownload: '',
   maxLatency: '',
   testType: '',
-  location: '',
+  size: '',
 })
 const selectedIds = ref<string[]>([])
 const insight = ref<AIInsight | null>(null)
@@ -77,12 +71,14 @@ watch(
 const filteredHistory = computed(() => {
   return history.value.filter((res) => {
     const date = new Date(res.timestamp)
-    if (filters.startDate && date < new Date(filters.startDate + 'T00:00:00')) return false
-    if (filters.endDate && date > new Date(filters.endDate + 'T23:59:59')) return false
-    if (filters.testType && res.testType !== filters.testType) return false
-    if (filters.location && res.location !== filters.location) return false
-    if (filters.minDownload && res.download < parseFloat(filters.minDownload)) return false
-    if (filters.maxLatency && res.latency > parseFloat(filters.maxLatency)) return false
+    if (filters.value.startDate && date < new Date(filters.value.startDate + 'T00:00:00'))
+      return false
+    if (filters.value.endDate && date > new Date(filters.value.endDate + 'T23:59:59')) return false
+    if (filters.value.testType && res.testType !== filters.value.testType) return false
+    if (filters.value.size && res.size !== filters.value.size) return false
+    if (filters.value.minDownload && res.download < parseFloat(filters.value.minDownload))
+      return false
+    if (filters.value.maxLatency && res.latency > parseFloat(filters.value.maxLatency)) return false
     return true
   })
 })
@@ -104,17 +100,13 @@ const runTest = async () => {
     (testMode.value === 'Full' || testMode.value === 'Upload' ? 4 : 0)
   timeLeft.value = totalTime
 
-  // const randomISP = SIMULATED_ISPS[Math.floor(Math.random() * SIMULATED_ISPS.length)]
-  // const chosenServer = SERVERS.find((s) => s.id === selectedServerId.value) || SERVERS[0]
-  // const serverLocation = `${chosenServer?.name} (${chosenServer?.provider})`
-
   Object.assign(currentResult, {
     download: 0,
     upload: 0,
     latency: 0,
     jitter: 0,
-    // isp: randomISP,
-    // location: serverLocation,
+    size: selectedSize.value,
+    testType: testMode.value,
   })
 
   const finishTest = (final: Partial<NetworkResult>) => {
@@ -128,42 +120,61 @@ const runTest = async () => {
       upload: final.upload || 0,
       latency: final.latency || 0,
       jitter: final.jitter || 0,
-      // isp: randomISP,
-      // location: serverLocation,
+      size: selectedSize.value,
       testType: testMode.value,
     }
     history.value = [res, ...history.value]
-    generateAIInsight(res)
+    // generateAIInsight(res)
   }
 
   // Real measurement helpers
   const measureLatency = async (url: string, attempts = 5) => {
     const times: number[] = []
     for (let i = 0; i < attempts; i++) {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 1000)
       try {
         const start = performance.now()
-        // Append cache-buster to avoid cached responses
-        await fetch(url + (url.includes('?') ? '&' : '?') + '_=' + Date.now(), {
-          method: 'GET',
-          cache: 'no-store',
-        })
+        let ok = false
+        try {
+          const res = await fetch(url, {
+            method: 'HEAD',
+            cache: 'no-store',
+            signal: controller.signal,
+          })
+          ok = res && res.ok
+        } catch {
+          ok = false
+        }
+        if (!ok) {
+          // Range request for first byte
+          const sep = url.includes('?') ? '&' : '?'
+          await fetch(url + sep + '_=' + Date.now(), {
+            method: 'GET',
+            cache: 'no-store',
+            headers: { Range: 'bytes=0-0' },
+            signal: controller.signal,
+          })
+        }
         const elapsed = performance.now() - start
         times.push(elapsed)
       } catch (e) {
-        // If fetch fails (CORS or network), bail out and return -1
+        // If fetch fails (CORS or network or timeout), mark this probe as failed
         console.warn('Latency probe failed', e)
-        return -1
+      } finally {
+        clearTimeout(timeout)
       }
-      // small delay between probes
-      await new Promise((r) => setTimeout(r, 150))
+      // small delay between probes to avoid bursts
+      await new Promise((r) => setTimeout(r, 120))
     }
-    // return median-ish (average)
+    if (times.length === 0) return -1
+    // return average
     return times.reduce((a, b) => a + b, 0) / times.length
   }
 
   const measureDownload = async (
     url: string,
-    maxBytes = 5_000_000,
+    maxBytes = SIZES[selectedSize.value as keyof typeof SIZES] || 50_000_000,
     onProgress?: (loaded: number, total?: number) => void,
   ) => {
     try {
@@ -208,7 +219,7 @@ const runTest = async () => {
       try {
         // create a random blob of requested size
         const chunk = 64 * 1024
-        const parts: Uint8Array[] = []
+        const parts: BlobPart[] = []
         let remaining = sizeBytes
         while (remaining > 0) {
           const s = Math.min(chunk, remaining)
@@ -257,22 +268,24 @@ const runTest = async () => {
     if (Array.isArray(DOWNLOAD_CANDIDATES) && DOWNLOAD_CANDIDATES.length)
       candidates.push(...DOWNLOAD_CANDIDATES)
 
-    const bestUrl = candidates[0]
-    const bestLatency = Infinity
-    for (const url of candidates) {
-      try {
-        // use a small number of attempts for probing
-        const l = await measureLatency(url, 3)
-        if (l > 0 && l < bestLatency) {
-          bestLatency = l
-          bestUrl = url
-        }
-      } catch {
-        // ignore probe errors and continue
+    // Probe candidates in parallel (with per-probe timeouts inside measureLatency)
+    const probePromises = candidates.map((url) =>
+      measureLatency(url, 2)
+        .then((l) => ({ url, l }))
+        .catch(() => ({ url, l: -1 })),
+    )
+    const probeResults = await Promise.all(probePromises)
+    // pick lowest positive latency
+    let bestUrl = candidates[0]
+    let bestLatency = Infinity
+    for (const r of probeResults) {
+      if (r.l > 0 && r.l < bestLatency) {
+        bestLatency = r.l
+        bestUrl = r.url
       }
     }
 
-    const probeUrl = bestUrl
+    const probeUrl = bestUrl || ''
     const lat = await measureLatency(probeUrl)
     if (lat > 0) {
       currentResult.latency = Math.round(lat)
@@ -288,13 +301,14 @@ const runTest = async () => {
       // DOWNLOAD
       status.value = 'download'
       phaseProgress.value = 0
-      timeLeft.value = testMode.value === 'Full' ? 5 : 5
+      timeLeft.value = 5
+
+      const mainBytes = SIZES[selectedSize.value as keyof typeof SIZES] || 50_000_000
       const onProgress = (loaded: number, total?: number) => {
-        const frac = Math.min(loaded / (total || 5_000_000), 1)
+        const frac = Math.min(loaded / (total || mainBytes), 1)
         phaseProgress.value = frac * 100
-        // rough remaining seconds estimate disabled (would require speed estimate)
       }
-      const dl = await measureDownload(DOWNLOAD_TEST_URL || probeUrl, 5_000_000, onProgress)
+      const dl = await measureDownload(DOWNLOAD_TEST_URL || probeUrl, mainBytes, onProgress)
       if (testMode.value === 'Download') {
         finishTest({
           download: dl > 0 ? dl : currentResult.download || 0,
@@ -306,8 +320,11 @@ const runTest = async () => {
       // UPLOAD
       status.value = 'upload'
       phaseProgress.value = 0
-      timeLeft.value = testMode.value === 'Full' ? 4 : 4
-      const up = await measureUpload(UPLOAD_TEST_URL, UPLOAD_TEST_SIZE)
+      timeLeft.value = 4
+      const up = await measureUpload(
+        UPLOAD_TEST_URL || '',
+        SIZES[selectedSize.value as keyof typeof SIZES] || 20_000_000,
+      )
       if (up > 0) {
         finishTest({
           download: currentResult.download,
@@ -359,21 +376,11 @@ const toggleSelection = (id: string) => {
 }
 
 const exportCSV = () => {
-  const headers = [
-    'Timestamp',
-    'Test Type',
-    'Node',
-    // 'ISP',
-    'Download',
-    'Upload',
-    'Latency',
-    'Jitter',
-  ]
+  const headers = ['Timestamp', 'Test Type', 'FileSize', 'Download', 'Upload', 'Latency', 'Jitter']
   const rows = filteredHistory.value.map((res) => [
     new Date(res.timestamp).toISOString(),
     res.testType,
-    res.location,
-    // res.isp,
+    res.size,
     res.download.toFixed(2),
     res.upload.toFixed(2),
     res.latency.toFixed(1),
@@ -389,13 +396,13 @@ const exportCSV = () => {
 }
 
 const resetFilters = () => {
-  Object.assign(filters, {
+  Object.assign(filters.value, {
     startDate: '',
     endDate: '',
     minDownload: '',
     maxLatency: '',
     testType: '',
-    location: '',
+    size: '',
   })
 }
 </script>
@@ -452,8 +459,8 @@ const resetFilters = () => {
             </button>
           </div>
         </div>
-        <ServerSelector
-          v-model="selectedServerId"
+        <SizeSelector
+          v-model="selectedSize"
           :disabled="status !== 'idle' && status !== 'completed'"
         />
         <button

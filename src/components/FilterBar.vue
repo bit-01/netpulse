@@ -1,34 +1,14 @@
 <script setup lang="ts">
 import type { FilterOptions } from '@/types'
-import { SERVERS } from '@/constants'
-import { ref, watch } from 'vue'
+import { SIZES } from '@/constants'
+import { computed } from 'vue'
 const props = defineProps<{ modelValue: FilterOptions }>()
 const emit = defineEmits(['update:modelValue', 'reset'])
 
-const local = ref<FilterOptions>({
-  startDate: props.modelValue.startDate,
-  endDate: props.modelValue.endDate,
-  testType: props.modelValue.testType,
-  location: props.modelValue.location,
-  minDownload: props.modelValue.minDownload,
-  maxLatency: props.modelValue.maxLatency,
+const local = computed<FilterOptions>({
+  get: () => props.modelValue,
+  set: (val) => emit('update:modelValue', val),
 })
-
-watch(
-  () => local.value,
-  (newVal: FilterOptions) => {
-    emit('update:modelValue', newVal)
-  },
-  { deep: true },
-)
-
-watch(
-  () => props.modelValue,
-  (newVal: FilterOptions) => {
-    local.value = { ...newVal }
-  },
-  { deep: true },
-)
 
 const labelClasses = 'text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block'
 const inputClasses =
@@ -67,21 +47,39 @@ const inputClasses =
         <option value="Latency" class="bg-slate-800">Latency</option>
       </select>
     </div>
+    <div className="flex-1 min-w-[100px]">
+      <label :class="labelClasses">Min Dn</label>
+      <input
+        type="number"
+        name="minDownload"
+        placeholder="Mbps"
+        value="{filters.minDownload}"
+        v-model="local.minDownload"
+        :class="`${inputClasses} w-full`"
+      />
+    </div>
+
+    <div className="flex-1 min-w-[100px]">
+      <label :class="labelClasses">Max Lat</label>
+      <input
+        type="number"
+        name="maxLatency"
+        placeholder="ms"
+        value="{filters.maxLatency}"
+        v-model="local.maxLatency"
+        :class="`${inputClasses} w-full`"
+      />
+    </div>
     <div class="flex-1 min-w-45">
-      <label :class="labelClasses">Target Node</label>
+      <label :class="labelClasses">Packet Size</label>
       <select
         name="location"
-        v-model="local.location"
+        v-model="local.size"
         :class="`${inputClasses} w-full appearance-none cursor-pointer`"
       >
-        <option value="" class="bg-slate-800">All Nodes</option>
-        <option
-          v-for="s in SERVERS"
-          :key="s.id"
-          :value="`${s.name} (${s.provider})`"
-          className="bg-slate-800"
-        >
-          {{ s.name }}
+        <option value="" class="bg-slate-800">All Sizes</option>
+        <option v-for="(s, k) of SIZES" :key="k" :value="`${k}`" className="bg-slate-800">
+          {{ k }}
         </option>
       </select>
     </div>

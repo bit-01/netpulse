@@ -5,8 +5,7 @@ export interface NetworkResult {
   upload: number // Mbps
   latency: number // ms
   jitter: number // ms
-  location?: string
-  isp?: string
+  size?: string
   testType: 'Full' | 'Download' | 'Upload' | 'Latency'
 }
 
@@ -24,7 +23,7 @@ export interface FilterOptions {
   minDownload: string
   maxLatency: string
   testType: string
-  location: string
+  size: string
 }
 
 export type TestMode = 'Full' | 'Download' | 'Upload' | 'Latency'

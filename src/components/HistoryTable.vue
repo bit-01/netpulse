@@ -24,9 +24,12 @@ const toggleAll = () => {
 </script>
 
 <template>
-  <div class="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40 backdrop-blur-sm">
+  <div
+    v-if="results.length > 0"
+    class="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40 backdrop-blur-sm"
+  >
     <table class="w-full text-left min-w-[900px]">
-      <thead class="bg-slate-800/50 text-slate-400 text-[10px] uppercase tracking-wider">
+      <thead class="bg-slate-800/50 text-slate-400 text-[10px] capitalize tracking-wider">
         <tr>
           <th class="px-6 py-4 w-16">
             <input
@@ -37,7 +40,7 @@ const toggleAll = () => {
             />
           </th>
           <th class="px-6 py-4">Timestamp</th>
-          <th class="px-6 py-4">Node</th>
+          <th class="px-6 py-4">Size</th>
           <th class="px-6 py-4">Down (Mbps)</th>
           <th class="px-6 py-4">Up (Mbps)</th>
           <th class="px-6 py-4">Latency (ms)</th>
@@ -64,7 +67,7 @@ const toggleAll = () => {
           <td class="px-6 py-4 text-xs text-slate-300 mono">
             {{ new Date(res.timestamp).toLocaleString() }}
           </td>
-          <td class="px-6 py-4 text-xs font-bold text-slate-200">{{ res.location }}</td>
+          <td class="px-6 py-4 text-xs font-bold text-slate-200">{{ res.size }}</td>
           <td class="px-6 py-4 font-bold mono text-cyan-400">{{ res.download.toFixed(2) }}</td>
           <td class="px-6 py-4 font-bold mono text-indigo-400">{{ res.upload.toFixed(2) }}</td>
           <td class="px-6 py-4 font-bold mono text-amber-400">{{ res.latency.toFixed(0) }}</td>
@@ -89,5 +92,11 @@ const toggleAll = () => {
         </tr>
       </tbody>
     </table>
+  </div>
+  <div
+    v-else
+    class="text-center py-12 bg-slate-900/20 border border-dashed border-slate-800 rounded-2xl"
+  >
+    <p class="text-slate-500 font-medium">No diagnostic logs found.</p>
   </div>
 </template>

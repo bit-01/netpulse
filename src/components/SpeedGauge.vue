@@ -65,7 +65,7 @@ const gradientId = computed(() => `grad-${props.label.toLowerCase()}`)
           ]"
           >{{ value > 99 ? Math.floor(value) : value.toFixed(1) }}</span
         >
-        <span class="text-[10px] font-bold text-slate-500 uppercase tracking-[0.3em] mt-1">{{
+        <span class="text-[10px] font-bold text-slate-500 capitalize tracking-[0.3em] mt-1">{{
           unit
         }}</span>
       </div>
