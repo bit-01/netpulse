@@ -19,7 +19,7 @@ const STORAGE_KEY = 'netpulse_results_vue'
 
 const status = ref<TestStatus>('idle')
 const testMode = ref<TestMode>('Full')
-const selectedSize = ref('50MB')
+const selectedSize = ref('10MB')
 const currentResult = reactive<Partial<NetworkResult>>({
   download: 0,
   upload: 0,
@@ -176,7 +176,7 @@ const runTest = async () => {
 
   const measureDownload = async (
     url: string,
-    maxBytes = SIZES[selectedSize.value as keyof typeof SIZES] || 50_000_000,
+    maxBytes = SIZES[selectedSize.value as keyof typeof SIZES] || 10_000_000,
     onProgress?: (loaded: number, total?: number) => void,
   ) => {
     try {
@@ -305,7 +305,7 @@ const runTest = async () => {
       phaseProgress.value = 0
       timeLeft.value = 5
 
-      const mainBytes = SIZES[selectedSize.value as keyof typeof SIZES] || 50_000_000
+      const mainBytes = SIZES[selectedSize.value as keyof typeof SIZES] || 10_000_000
       const onProgress = (loaded: number, total?: number) => {
         const frac = Math.min(loaded / (total || mainBytes), 1)
         phaseProgress.value = frac * 100

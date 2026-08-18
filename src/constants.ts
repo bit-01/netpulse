@@ -11,6 +11,7 @@ export const DOWNLOAD_TEST_URL = process.env.DOWNLOAD_TEST_URL
 export const UPLOAD_TEST_URL = process.env.UPLOAD_TEST_URL
 
 export const SIZES = {
+  '10MB': 10_000_000,
   '50MB': 50_000_000,
   '100MB': 100_000_000,
   '1GB': 1_000_000_000,
